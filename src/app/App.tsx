@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Cpu, FileText, BookOpen } from "lucide-react";
 import { ManualControls } from "./components/ManualControls";
 import { TimerControl } from "./components/TimerControl";
@@ -39,6 +39,8 @@ export default function App() {
   const [lowThreshold, setLowThreshold] = useState(25);
   const [highThreshold, setHighThreshold] = useState(35);
 
+  const lastUpdateRef = useRef(0);
+
   // Fetch current state from server
   const fetchState = async () => {
     try {
@@ -50,6 +52,11 @@ export default function App() {
       
       if (response.ok) {
         const data = await response.json();
+        
+        // If we recently updated the server within the last 4 seconds, skip overwriting local UI
+        // to prevent slow databases from rubber-banding the inputs back before they propagate.
+        if (Date.now() - lastUpdateRef.current < 4000) return;
+
         setMotor(data.motor || false);
         setFan(data.fan || false);
         setHighThreshold(data.tempHigh || 35);
@@ -80,6 +87,7 @@ export default function App() {
 
   // Update motor/fan on server
   const updateControl = async (newMotor: boolean, newFan: boolean) => {
+    lastUpdateRef.current = Date.now();
     try {
       await fetch(`${API_BASE}/control`, {
         method: 'POST',
@@ -96,6 +104,7 @@ export default function App() {
 
   // Update thresholds on server
   const updateThresholds = async (low: number, high: number) => {
+    lastUpdateRef.current = Date.now();
     try {
       await fetch(`${API_BASE}/thresholds`, {
         method: 'POST',
@@ -112,6 +121,7 @@ export default function App() {
 
   // Update schedule on server
   const updateSchedule = async (newSchedules: {start: string, end: string}[]) => {
+    lastUpdateRef.current = Date.now();
     try {
       await fetch(`${API_BASE}/schedule`, {
         method: 'POST',
@@ -128,6 +138,7 @@ export default function App() {
 
   // Update timer on server
   const updateTimer = async (timerSeconds: number) => {
+    lastUpdateRef.current = Date.now();
     try {
       await fetch(`${API_BASE}/timer`, {
         method: 'POST',
