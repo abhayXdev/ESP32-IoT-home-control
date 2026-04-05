@@ -10,7 +10,7 @@ const char* ssid = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 
 // REPLACE [projectId] with the ID from your Supabase Dashboard
-const char* vercelUrl = "https://[projectId].supabase.co/functions/v1/make-server-66a828fc/status"; 
+const char* vercelUrl = "https://lgvcwwbgejxutyiohtfs.supabase.co/functions/v1/make-server-66a828fc/status"; 
 
 // --- 2. PIN DEFINITIONS ---
 #define MOTOR_PIN 2
