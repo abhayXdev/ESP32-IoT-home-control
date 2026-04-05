@@ -47,8 +47,14 @@ app.post("/make-server-66a828fc/status", async (c) => {
     const tempHigh = await kv.get("tempHigh") || 35;
     const tempLow = await kv.get("tempLow") || 25;
     const timerSeconds = await kv.get("timerSeconds") || 0;
-    const schedStart = await kv.get("schedStart") || "12:00";
-    const schedEnd = await kv.get("schedEnd") || "13:00";
+    
+    // Check if schedules exist, otherwise fallback to old structure or default array
+    let schedules = await kv.get("schedules");
+    if (!schedules) {
+      const schedStart = await kv.get("schedStart") || "12:00";
+      const schedEnd = await kv.get("schedEnd") || "13:00";
+      schedules = [{start: schedStart, end: schedEnd}];
+    }
 
     // Return commands to ESP32
     return c.json({
@@ -57,8 +63,7 @@ app.post("/make-server-66a828fc/status", async (c) => {
       tempHigh,
       tempLow,
       timerSeconds,
-      schedStart,
-      schedEnd,
+      schedules,
     });
   } catch (error) {
     console.error("Error in /status endpoint:", error);
@@ -74,8 +79,14 @@ app.get("/make-server-66a828fc/state", async (c) => {
     const tempHigh = await kv.get("tempHigh") || 35;
     const tempLow = await kv.get("tempLow") || 25;
     const timerSeconds = await kv.get("timerSeconds") || 0;
-    const schedStart = await kv.get("schedStart") || "12:00";
-    const schedEnd = await kv.get("schedEnd") || "13:00";
+    
+    let schedules = await kv.get("schedules");
+    if (!schedules) {
+      const schedStart = await kv.get("schedStart") || "12:00";
+      const schedEnd = await kv.get("schedEnd") || "13:00";
+      schedules = [{start: schedStart, end: schedEnd}];
+    }
+
     const currentTemperature = await kv.get("currentTemperature") || 0;
     const esp32MotorStatus = await kv.get("esp32MotorStatus") || false;
     const esp32FanStatus = await kv.get("esp32FanStatus") || false;
@@ -87,8 +98,7 @@ app.get("/make-server-66a828fc/state", async (c) => {
       tempHigh,
       tempLow,
       timerSeconds,
-      schedStart,
-      schedEnd,
+      schedules,
       currentTemperature,
       esp32MotorStatus,
       esp32FanStatus,
@@ -159,11 +169,12 @@ app.post("/make-server-66a828fc/schedule", async (c) => {
   try {
     const body = await c.req.json();
     
-    if (body.schedStart !== undefined) {
-      await kv.set("schedStart", body.schedStart);
+    if (body.schedules !== undefined) {
+      await kv.set("schedules", body.schedules);
     }
-    if (body.schedEnd !== undefined) {
-      await kv.set("schedEnd", body.schedEnd);
+    // Fallback for old single schedule sync
+    else if (body.schedStart !== undefined && body.schedEnd !== undefined) {
+      await kv.set("schedules", [{ start: body.schedStart, end: body.schedEnd }]);
     }
     
     return c.json({ success: true });

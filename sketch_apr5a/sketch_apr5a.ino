@@ -27,7 +27,15 @@ bool fanState = false;
 float currentTemp = 0.0;
 float tHigh = 35.0, tLow = 25.0;
 long timerSeconds = 0; 
-String schedStart = "12:00", schedEnd = "13:00";
+long lastWebTimer = -1;
+
+struct Schedule {
+    String start;
+    String end;
+    String lastTriggered;
+};
+Schedule schedules[5]; // Max 5 schedules
+int scheduleCount = 0;
 
 unsigned long lastSync = 0;
 unsigned long lastSecond = 0;
@@ -107,11 +115,26 @@ void syncWithCloud() {
         // Update local rules from Database
         tHigh = recvDoc["tempHigh"] | tHigh;
         tLow = recvDoc["tempLow"] | tLow;
-        schedStart = recvDoc["schedStart"].as<String>();
-        schedEnd = recvDoc["schedEnd"].as<String>();
+        
+        // Parse Schedules array
+        if (recvDoc.containsKey("schedules") && recvDoc["schedules"].is<JsonArray>()) {
+            JsonArray schedArr = recvDoc["schedules"].as<JsonArray>();
+            scheduleCount = 0;
+            for (JsonVariant v : schedArr) {
+                if (scheduleCount >= 5) break; 
+                schedules[scheduleCount].start = v["start"].as<String>();
+                schedules[scheduleCount].end = v["end"].as<String>();
+                scheduleCount++;
+            }
+        }
         
         long webTimer = recvDoc["timerSeconds"] | 0;
-        if (webTimer > 0) timerSeconds = webTimer;
+        // Only accept the new timer if it changed, to allow countdown!
+        // But if webTimer is 0, we can stop the countdown.
+        if (webTimer != lastWebTimer) {
+            timerSeconds = webTimer;
+            lastWebTimer = webTimer;
+        }
 
         bool webMotor = recvDoc["motor"];
         bool webFan = recvDoc["fan"];
@@ -159,7 +182,9 @@ void loop() {
     // Timer Countdown
     if (now - lastSecond > 1000) {
         if (timerSeconds > 0) {
-            if (--timerSeconds == 0) forceOverrideCloud(false, false);
+            if (--timerSeconds == 0) {
+                forceOverrideCloud(false, false);
+            }
         }
         lastSecond = now;
     }
@@ -167,7 +192,6 @@ void loop() {
     // Single-Fire Triggers for Auto Controls
     static bool tempTriggeredHigh = false;
     static bool tempTriggeredLow = false;
-    static String lastSchedTrigger = "";
 
     // Hysteresis Temp Logic
     if (currentTemp > 0.0) { // Only run if sensor is attached
@@ -192,20 +216,22 @@ void loop() {
         }
     }
 
-    // Daily Scheduler
+    // Daily Scheduler (Multiple Schedules)
     struct tm ti;
     if (getLocalTime(&ti)) {
         char buf[6];
         strftime(buf, sizeof(buf), "%H:%M", &ti);
         String currentTime = String(buf);
         
-        if (currentTime == schedStart && lastSchedTrigger != schedStart) {
-            forceOverrideCloud(true, true);
-            lastSchedTrigger = schedStart;
-        } 
-        else if (currentTime == schedEnd && lastSchedTrigger != schedEnd) {
-            forceOverrideCloud(false, false);
-            lastSchedTrigger = schedEnd;
+        for (int i = 0; i < scheduleCount; i++) {
+            if (currentTime == schedules[i].start && schedules[i].lastTriggered != schedules[i].start) {
+                forceOverrideCloud(true, true);
+                schedules[i].lastTriggered = schedules[i].start;
+            } 
+            else if (currentTime == schedules[i].end && schedules[i].lastTriggered != schedules[i].end) {
+                forceOverrideCloud(false, false);
+                schedules[i].lastTriggered = schedules[i].end;
+            }
         }
     }
 

@@ -33,8 +33,7 @@ export default function App() {
   const [timerRunning, setTimerRunning] = useState(false);
 
   // Scheduler states
-  const [schedStart, setSchedStart] = useState("12:00");
-  const [schedEnd, setSchedEnd] = useState("13:00");
+  const [schedules, setSchedules] = useState<{start: string, end: string}[]>([{start: "12:00", end: "13:00"}]);
 
   // Temperature states
   const [lowThreshold, setLowThreshold] = useState(25);
@@ -55,8 +54,13 @@ export default function App() {
         setFan(data.fan || false);
         setHighThreshold(data.tempHigh || 35);
         setLowThreshold(data.tempLow || 25);
-        setSchedStart(data.schedStart || "12:00");
-        setSchedEnd(data.schedEnd || "13:00");
+        
+        if (data.schedules) {
+          setSchedules(data.schedules);
+        } else if (data.schedStart && data.schedEnd) {
+          setSchedules([{start: data.schedStart, end: data.schedEnd}]);
+        }
+
         setCurrentTemp(data.currentTemperature || 0);
         setEsp32MotorStatus(data.esp32MotorStatus || false);
         setEsp32FanStatus(data.esp32FanStatus || false);
@@ -107,7 +111,7 @@ export default function App() {
   };
 
   // Update schedule on server
-  const updateSchedule = async (start: string, end: string) => {
+  const updateSchedule = async (newSchedules: {start: string, end: string}[]) => {
     try {
       await fetch(`${API_BASE}/schedule`, {
         method: 'POST',
@@ -115,7 +119,7 @@ export default function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
         },
-        body: JSON.stringify({ schedStart: start, schedEnd: end }),
+        body: JSON.stringify({ schedules: newSchedules }),
       });
     } catch (error) {
       console.error("Error updating schedule:", error);
@@ -195,10 +199,9 @@ export default function App() {
     updateThresholds(lowThreshold, value);
   };
 
-  const handleScheduleChange = (start: string, end: string) => {
-    setSchedStart(start);
-    setSchedEnd(end);
-    updateSchedule(start, end);
+  const handleScheduleChange = (newSchedules: {start: string, end: string}[]) => {
+    setSchedules(newSchedules);
+    updateSchedule(newSchedules);
   };
 
   return (
@@ -253,8 +256,7 @@ export default function App() {
 
               {/* Scheduler */}
               <Scheduler
-                schedStart={schedStart}
-                schedEnd={schedEnd}
+                schedules={schedules}
                 onScheduleChange={handleScheduleChange}
               />
 
