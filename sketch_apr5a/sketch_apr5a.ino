@@ -11,6 +11,7 @@ const char* password = "YOUR_WIFI_PASSWORD";
 
 // REPLACE [projectId] with the ID from your Supabase Dashboard
 const char* vercelUrl = "https://lgvcwwbgejxutyiohtfs.supabase.co/functions/v1/make-server-66a828fc/status"; 
+const char* supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndmN3d2JnZWp4dXR5aW9odGZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzMTg4MjMsImV4cCI6MjA5MDg5NDgyM30.pnPAQfM0Labq9o0DCdBWIFC3uxEPGh_Nim6IpQ2E4A4";
 
 // --- 2. PIN DEFINITIONS ---
 #define MOTOR_PIN 2
@@ -61,6 +62,7 @@ void syncWithCloud() {
     HTTPClient http;
     http.begin(vercelUrl);
     http.addHeader("Content-Type", "application/json");
+    http.addHeader("Authorization", String("Bearer ") + supabaseAnonKey);
 
     JsonDocument sendDoc;
     sendDoc["temperature"] = currentTemp;
