@@ -46,13 +46,38 @@ void updateHardware(bool m, bool f) {
 // --- 5. TEMPERATURE MATH (10K NTC) ---
 float readTemperature() {
     int adc = analogRead(NTC_PIN);
-    if (adc == 0) return currentTemp;
-    float resistance = 10000.0 / (4095.0 / adc - 1.0);
+    if (adc == 0 || adc >= 4095) return currentTemp;
+
+    // Use inverted math since the thermistor voltage goes down as temperature goes up
+    float resistance = 10000.0 * (4095.0 / adc - 1.0);
+    
     float steinhart = resistance / 10000.0; 
     steinhart = log(steinhart);
     steinhart /= 3950.0; 
     steinhart += 1.0 / (25.0 + 273.15);
     return (1.0 / steinhart) - 273.15;
+}
+
+// --- 5.5 PUSH OVERRIDE TO CLOUD ---
+void forceOverrideCloud(bool m, bool f) {
+    updateHardware(m, f); // update local pins immediately
+
+    if (WiFi.status() == WL_CONNECTED) {
+        HTTPClient http;
+        http.begin("https://lgvcwwbgejxutyiohtfs.supabase.co/functions/v1/make-server-66a828fc/control");
+        http.addHeader("Content-Type", "application/json");
+        http.addHeader("Authorization", String("Bearer ") + supabaseAnonKey);
+        
+        JsonDocument doc;
+        doc["motor"] = motorState;
+        doc["fan"] = fanState;
+        
+        String jsonOutput;
+        serializeJson(doc, jsonOutput);
+        int code = http.POST(jsonOutput);
+        Serial.printf("[Override] Synced with cloud, status %d\n", code);
+        http.end();
+    }
 }
 
 // --- 6. CLOUD SYNC (SUPABASE/VERCEL) ---
@@ -134,14 +159,38 @@ void loop() {
     // Timer Countdown
     if (now - lastSecond > 1000) {
         if (timerSeconds > 0) {
-            if (--timerSeconds == 0) updateHardware(false, false);
+            if (--timerSeconds == 0) forceOverrideCloud(false, false);
         }
         lastSecond = now;
     }
 
+    // Single-Fire Triggers for Auto Controls
+    static bool tempTriggeredHigh = false;
+    static bool tempTriggeredLow = false;
+    static String lastSchedTrigger = "";
+
     // Hysteresis Temp Logic
-    if (currentTemp >= tHigh && !motorState) updateHardware(true, true);
-    else if (currentTemp <= tLow && motorState) updateHardware(false, false);
+    if (currentTemp > 0.0) { // Only run if sensor is attached
+        if (currentTemp >= tHigh) {
+            if (!tempTriggeredHigh) {
+                forceOverrideCloud(true, true);
+                tempTriggeredHigh = true;
+                tempTriggeredLow = false;
+            }
+        } 
+        else if (currentTemp <= tLow) {
+            if (!tempTriggeredLow) {
+                forceOverrideCloud(false, false);
+                tempTriggeredLow = true;
+                tempTriggeredHigh = false;
+            }
+        } 
+        else {
+            // inside deadband, reset so we can trigger again if it fluctuates
+            tempTriggeredHigh = false;
+            tempTriggeredLow = false;
+        }
+    }
 
     // Daily Scheduler
     struct tm ti;
@@ -149,13 +198,20 @@ void loop() {
         char buf[6];
         strftime(buf, sizeof(buf), "%H:%M", &ti);
         String currentTime = String(buf);
-        if (currentTime == schedStart && !motorState) updateHardware(true, true);
-        if (currentTime == schedEnd && motorState) updateHardware(false, false);
+        
+        if (currentTime == schedStart && lastSchedTrigger != schedStart) {
+            forceOverrideCloud(true, true);
+            lastSchedTrigger = schedStart;
+        } 
+        else if (currentTime == schedEnd && lastSchedTrigger != schedEnd) {
+            forceOverrideCloud(false, false);
+            lastSchedTrigger = schedEnd;
+        }
     }
 
-    // Touch Sensors
-    if (touchRead(TOUCH_MOTOR) < 30) { updateHardware(!motorState, fanState); delay(400); }
-    if (touchRead(TOUCH_FAN) < 30) { updateHardware(motorState, !fanState); delay(400); }
+    // Touch Sensors (Uncommented for physical pads!)
+    if (touchRead(TOUCH_MOTOR) < 30) { forceOverrideCloud(!motorState, fanState); delay(500); }
+    if (touchRead(TOUCH_FAN) < 30) { forceOverrideCloud(motorState, !fanState); delay(500); }
     
     delay(1); 
 }
