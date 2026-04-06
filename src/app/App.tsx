@@ -78,10 +78,10 @@ export default function App() {
     }
   };
 
-  // Poll server every 3 seconds
+  // Poll server every 1 second
   useEffect(() => {
     fetchState();
-    const interval = setInterval(fetchState, 3000);
+    const interval = setInterval(fetchState, 1000);
     return () => clearInterval(interval);
   }, []);
 
