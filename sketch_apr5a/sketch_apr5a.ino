@@ -6,8 +6,8 @@
 #include <time.h>
 
 // --- 1. NETWORK SETTINGS ---
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = "CyberPhonix_2.4G";
+const char* password = "Hello_mighty_raju_@1234";
 
 // REPLACE [projectId] with the ID from your Supabase Dashboard
 const char* vercelUrl = "https://lgvcwwbgejxutyiohtfs.supabase.co/functions/v1/make-server-66a828fc/status"; 
@@ -173,7 +173,7 @@ void loop() {
     unsigned long now = millis();
 
     // Sync with Cloud every 5 seconds
-    if (now - lastSync > 5000) {
+    if (now - lastSync > 500) {
         currentTemp = readTemperature();
         syncWithCloud();
         lastSync = now;
@@ -236,8 +236,8 @@ void loop() {
     }
 
     // Touch Sensors (Uncommented for physical pads!)
-    if (touchRead(TOUCH_MOTOR) < 30) { forceOverrideCloud(!motorState, fanState); delay(500); }
-    if (touchRead(TOUCH_FAN) < 30) { forceOverrideCloud(motorState, !fanState); delay(500); }
+    if (touchRead(TOUCH_MOTOR) < 300) { forceOverrideCloud(!motorState, fanState); delay(50); }
+    if (touchRead(TOUCH_FAN) < 300) { forceOverrideCloud(motorState, !fanState); delay(50); }
     
     delay(1); 
 }
